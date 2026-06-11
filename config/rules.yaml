@@ -1,0 +1,48 @@
+# ---------------------------------------------------------------------------
+# Business rules consumed by the Validator agent.
+#
+# These are *deterministic* checks applied to the structured fields produced
+# by the Extractor. Keeping them in config (rather than code or an LLM prompt)
+# means a non-engineer can tune routing behaviour without a redeploy.
+# ---------------------------------------------------------------------------
+
+# Global thresholds applied across all document types.
+thresholds:
+  # Extraction confidence below this triggers a Validator -> Extractor retry.
+  min_confidence: 0.75
+  # Invoice totals above this amount are always flagged for human review.
+  invoice_auto_approve_max_amount: 10000.0
+
+# Vendors that are pre-approved. Invoices from unknown vendors are flagged
+# rather than auto-approved. Case-insensitive substring match.
+vendor_whitelist:
+  - "Acme Corp"
+  - "Globex"
+  - "Initech"
+  - "Umbrella Industries"
+  - "Stark Industries"
+
+# Per-document-type validation settings.
+document_types:
+  invoice:
+    # Fields that must be present and non-empty for the document to be valid.
+    required_fields:
+      - vendor_name
+      - invoice_number
+      - total_amount
+      - invoice_date
+    # Allow the extracted line-item sum to differ from the stated total by
+    # at most this absolute amount (covers rounding / tax line quirks).
+    total_tolerance: 0.05
+  contract:
+    required_fields:
+      - parties
+      - effective_date
+  resume:
+    required_fields:
+      - candidate_name
+      - email
+  id_document:
+    required_fields:
+      - full_name
+      - id_number

@@ -1,0 +1,15 @@
+RESUME
+
+Name: Jane Doe
+Email: jane.doe@example.com
+Phone: +1-555-0142
+
+EXPERIENCE
+- Senior Software Engineer, Globex (2021 - present)
+- Software Engineer, Initech (2018 - 2021)
+
+EDUCATION
+- B.Sc. Computer Science
+
+SKILLS
+Python, FastAPI, LangGraph, distributed systems
