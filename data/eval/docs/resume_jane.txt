@@ -1,0 +1,13 @@
+RESUME
+
+Name: Jane Doe
+Email: jane.doe@example.com
+
+EXPERIENCE
+- Senior Software Engineer, Globex (2021 - present)
+
+EDUCATION
+- B.Sc. Computer Science
+
+SKILLS
+Python, FastAPI, LangGraph

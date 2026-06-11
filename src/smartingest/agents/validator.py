@@ -9,14 +9,26 @@ routing decisions must be reproducible and explainable.
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from smartingest.config import Settings, get_settings
+from smartingest.guardrails import check_grounding
 from smartingest.logging_config import get_logger
 from smartingest.models import DocumentType, ExtractedFields, ValidationIssue
 from smartingest.rules import Rules, get_rules
 from smartingest.state import AgentState
 
 logger = get_logger(__name__)
+
+
+def _read_source_text(file_path: str) -> str:
+    """Best-effort text read of the source document for grounding."""
+    if not file_path:
+        return ""
+    try:
+        return Path(file_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:  # pragma: no cover - defensive
+        return ""
 
 
 def _check_required_fields(
@@ -97,7 +109,8 @@ def validator_node(
         settings: Optional injected settings (used in tests).
 
     Returns:
-        A partial state update containing ``validation_issues``.
+        A partial state update containing ``validation_issues`` and any
+        appended grounding ``security_findings``.
     """
     settings = settings or get_settings()
     rules = rules or get_rules(settings.smartingest_rules_path)
@@ -118,7 +131,19 @@ def validator_node(
         len(errors),
         len(issues) - len(errors),
     )
-    return {"validation_issues": issues}
+
+    # Post-extraction guardrail: ensure extracted values are grounded in the
+    # source. Appended to the existing security findings from the entry scan.
+    updates: AgentState = {"validation_issues": issues}
+    if settings.smartingest_enable_guardrails:
+        source_text = _read_source_text(state.get("file_path", ""))
+        grounding = check_grounding(fields, source_text)
+        if grounding:
+            existing = list(state.get("security_findings", []))
+            logger.info("[%s] Grounding check raised %d finding(s).", job_id, len(grounding))
+            updates["security_findings"] = existing + grounding
+
+    return updates
 
 
 def needs_retry(state: AgentState, settings: Settings | None = None) -> str:

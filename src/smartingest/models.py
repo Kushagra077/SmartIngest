@@ -94,6 +94,24 @@ class ValidationIssue(BaseModel):
     severity: str = "error"  # "error" | "warning"
 
 
+class SecurityCategory(str, Enum):
+    """Categories of security/guardrail findings."""
+
+    INPUT = "input"  # file-level validation (size, type)
+    INJECTION = "injection"  # prompt-injection attempt in document text
+    PII = "pii"  # personally identifiable information detected
+    GROUNDING = "grounding"  # extracted value not found in source (hallucination)
+
+
+class SecurityFinding(BaseModel):
+    """A single guardrail finding raised during processing."""
+
+    category: SecurityCategory
+    message: str
+    severity: str = "warning"  # "error" | "warning"
+    detail: str = ""
+
+
 class ClassificationResult(BaseModel):
     """Output of the Classifier agent."""
 
@@ -112,6 +130,7 @@ class PipelineResult(BaseModel):
     extraction_confidence: float = 0.0
     fields: ExtractedFields = Field(default_factory=ExtractedFields)
     validation_issues: list[ValidationIssue] = Field(default_factory=list)
+    security_findings: list[SecurityFinding] = Field(default_factory=list)
     route: RouteDecision | None = None
     route_reason: str = ""
     retries: int = 0

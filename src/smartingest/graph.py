@@ -15,6 +15,7 @@ from langgraph.graph import END, StateGraph
 
 from smartingest.agents.classifier import classifier_node
 from smartingest.agents.extractor import extractor_node
+from smartingest.agents.guardrails import guardrail_node
 from smartingest.agents.router import router_node
 from smartingest.agents.validator import needs_retry, validator_node
 from smartingest.logging_config import get_logger
@@ -33,12 +34,15 @@ def build_graph():
     """Construct and compile the document-processing state graph."""
     builder = StateGraph(AgentState)
 
+    builder.add_node("guardrails", guardrail_node)
     builder.add_node("classifier", classifier_node)
     builder.add_node("extractor", extractor_node)
     builder.add_node("validator", validator_node)
     builder.add_node("router", router_node)
 
-    builder.set_entry_point("classifier")
+    # Guardrails run first (input scan), then the classify/extract/validate flow.
+    builder.set_entry_point("guardrails")
+    builder.add_edge("guardrails", "classifier")
     builder.add_edge("classifier", "extractor")
     builder.add_edge("extractor", "validator")
 
@@ -101,6 +105,7 @@ def _state_to_result(job_id: str, state: AgentState) -> PipelineResult:
         extraction_confidence=state.get("extraction_confidence", 0.0),
         fields=state.get("fields", ExtractedFields()),
         validation_issues=state.get("validation_issues", []),
+        security_findings=state.get("security_findings", []),
         route=state.get("route"),
         route_reason=state.get("route_reason", ""),
         retries=state.get("retries", 0),

@@ -20,6 +20,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from smartingest.config import get_settings
+from smartingest.guardrails import FileValidationError, validate_upload
 from smartingest.logging_config import get_logger
 from smartingest.models import (
     JobStatus,
@@ -78,8 +79,18 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
         raise HTTPException(status_code=400, detail="A filename is required.")
 
     contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # Input guardrail: validate size/type before persisting or processing.
+    settings = app.state.settings
+    try:
+        validate_upload(
+            file.filename,
+            contents,
+            file.content_type,
+            settings.smartingest_max_file_size_mb,
+        )
+    except FileValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     job_id = uuid.uuid4().hex
     suffix = Path(file.filename).suffix

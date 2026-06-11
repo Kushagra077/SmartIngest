@@ -1,4 +1,4 @@
-.PHONY: install test api ui run lint clean
+.PHONY: install test api ui run eval lint clean
 
 VENV ?= .venv
 PY := $(VENV)/bin/python
@@ -20,6 +20,9 @@ ui:  ## Start the Streamlit frontend (http://localhost:8501)
 
 run:  ## Run one sample document through the pipeline (CLI)
 	PYTHONPATH=src $(PY) -m smartingest.cli data/samples/invoice_acme.txt
+
+eval:  ## Run the evaluation harness over the golden dataset
+	PYTHONPATH=src $(PY) -m smartingest.eval.runner
 
 clean:  ## Remove caches and local data
 	rm -rf .pytest_cache **/__pycache__ data/jobs.db data/uploads

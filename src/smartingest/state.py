@@ -13,6 +13,7 @@ from smartingest.models import (
     DocumentType,
     ExtractedFields,
     RouteDecision,
+    SecurityFinding,
     ValidationIssue,
 )
 
@@ -39,6 +40,9 @@ class AgentState(TypedDict, total=False):
     # --- Extractor outputs ---
     fields: ExtractedFields
     extraction_confidence: float
+
+    # --- Guardrail outputs (entry scan + grounding check) ---
+    security_findings: list[SecurityFinding]
 
     # --- Validator outputs ---
     validation_issues: list[ValidationIssue]

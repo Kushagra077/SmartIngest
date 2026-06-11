@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     smartingest_min_confidence: float = 0.75
     smartingest_max_retries: int = 2
 
+    # --- Guardrails ---
+    smartingest_enable_guardrails: bool = True
+    smartingest_max_file_size_mb: float = 25.0
+
     # --- Frontend ---
     smartingest_api_url: str = "http://localhost:8000"
 

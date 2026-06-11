@@ -1,0 +1,10 @@
+INVOICE
+Vendor: Acme Corp
+Invoice #: INV-2026-0042
+Date: 2026-01-15
+
+2 x Widget @ $50.00 = $100.00
+1 x Gadget @ $40.00 = $40.00
+3 x Sprocket @ $20.00 = $60.00
+
+Total: $200.00

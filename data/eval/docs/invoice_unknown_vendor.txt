@@ -1,0 +1,8 @@
+INVOICE
+Vendor: Sketchy Holdings LLC
+Invoice #: SH-99821
+Date: 2026-02-03
+
+1 x Consulting @ $300.00 = $300.00
+
+Total: $300.00

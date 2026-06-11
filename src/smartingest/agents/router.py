@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from smartingest.config import Settings, get_settings
 from smartingest.logging_config import get_logger
-from smartingest.models import DocumentType, ExtractedFields, RouteDecision
+from smartingest.models import (
+    DocumentType,
+    ExtractedFields,
+    RouteDecision,
+    SecurityCategory,
+)
 from smartingest.rules import Rules, get_rules
 from smartingest.state import AgentState
 
@@ -24,16 +29,26 @@ def route_decision(
     """Compute the routing decision and a human-readable reason.
 
     Decision order (first match wins):
-      1. Unknown type or upstream error  -> REJECT
-      2. Any error-severity issue         -> REJECT
-      3. Warnings, or amount over the
-         auto-approve cap, or borderline
-         confidence                       -> FLAG_FOR_REVIEW
-      4. Otherwise                        -> AUTO_APPROVE
+      1. Unknown type or upstream error    -> REJECT
+      2. Prompt-injection (security error)  -> REJECT
+      3. Any error-severity validation issue -> REJECT
+      4. Security warnings (PII/grounding),
+         warnings, amount over the cap, or
+         borderline confidence              -> FLAG_FOR_REVIEW
+      5. Otherwise                          -> AUTO_APPROVE
     """
     issues = state.get("validation_issues", [])
     errors = [i for i in issues if i.severity == "error"]
     warnings = [i for i in issues if i.severity == "warning"]
+    security = state.get("security_findings", [])
+    security_errors = [s for s in security if s.severity == "error"]
+    # PII is informational (it drives redaction, not routing); other security
+    # warnings (e.g. grounding/hallucination) do warrant human review.
+    security_warnings = [
+        s
+        for s in security
+        if s.severity == "warning" and s.category != SecurityCategory.PII
+    ]
     doc_type = state.get("document_type", DocumentType.UNKNOWN)
     fields = state.get("fields", ExtractedFields())
 
@@ -42,6 +57,16 @@ def route_decision(
 
     if doc_type == DocumentType.UNKNOWN:
         return RouteDecision.REJECT, "Document type could not be determined."
+
+    # Prompt injection is never auto-approved or quietly flagged — reject it.
+    injection = [s for s in security_errors if s.category == SecurityCategory.INJECTION]
+    if injection:
+        summary = "; ".join(s.message for s in injection)
+        return RouteDecision.REJECT, f"Security: {summary}"
+
+    if security_errors:
+        summary = "; ".join(s.message for s in security_errors)
+        return RouteDecision.REJECT, f"Security errors: {summary}"
 
     if errors:
         summary = "; ".join(f"{i.field}: {i.message}" for i in errors)
@@ -59,6 +84,10 @@ def route_decision(
             RouteDecision.FLAG_FOR_REVIEW,
             f"Invoice total {fields.total_amount} exceeds auto-approve cap {max_amount}.",
         )
+
+    if security_warnings:
+        summary = "; ".join(s.message for s in security_warnings)
+        return RouteDecision.FLAG_FOR_REVIEW, f"Security review required: {summary}"
 
     if warnings:
         summary = "; ".join(f"{i.field}: {i.message}" for i in warnings)
