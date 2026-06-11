@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from smartingest.logging_config import get_logger
@@ -52,7 +52,7 @@ class JobStore:
 
     def create(self, job_id: str, filename: str) -> None:
         """Insert a new job in the QUEUED state."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         with self._lock:
             self._conn.execute(
                 "INSERT INTO jobs (job_id, filename, status, result, created_at, updated_at)"
@@ -67,7 +67,7 @@ class JobStore:
         with self._lock:
             self._conn.execute(
                 "UPDATE jobs SET status = ?, updated_at = ? WHERE job_id = ?",
-                (status.value, datetime.utcnow().isoformat(), job_id),
+                (status.value, datetime.now(timezone.utc).isoformat(), job_id),
             )
             self._conn.commit()
 
@@ -79,7 +79,7 @@ class JobStore:
                 (
                     result.status.value,
                     result.model_dump_json(),
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     job_id,
                 ),
             )

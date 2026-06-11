@@ -105,7 +105,10 @@ class GeminiClient:
         """Build a Gemini content part from a file on disk."""
         from google.genai import types  # type: ignore
 
-        data = Path(file_path).read_bytes()
+        try:
+            data = Path(file_path).read_bytes()
+        except OSError as exc:
+            raise LLMError(f"Failed to read file {file_path}: {exc}") from exc
         return types.Part.from_bytes(data=data, mime_type=mime_type)
 
     def _generate_json(self, prompt: str, file_path: str, mime_type: str) -> dict:
@@ -261,10 +264,16 @@ def _parse_line_items(text: str) -> list[LineItem]:
 
 
 def _safe_json_loads(raw: str) -> dict:
-    """Parse JSON, tolerating markdown code fences around the payload."""
+    """Parse JSON, tolerating code fences and conversational prefix/suffix text.
+
+    Extracts the outermost ``{...}`` object so wrappers like a leading
+    "Here is the JSON:" or markdown fences don't break parsing.
+    """
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.MULTILINE)
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end > start:
+        raw = raw[start : end + 1]
     try:
         result = json.loads(raw)
         return result if isinstance(result, dict) else {}

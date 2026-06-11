@@ -108,7 +108,7 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
 
 
 @app.get("/status/{job_id}", response_model=StatusResponse)
-async def status(job_id: str) -> StatusResponse:
+def status(job_id: str) -> StatusResponse:
     """Return the current status of a job."""
     store: JobStore = app.state.store
     job_status = store.get_status(job_id)
@@ -126,7 +126,7 @@ async def status(job_id: str) -> StatusResponse:
 
 
 @app.get("/results/{job_id}", response_model=PipelineResult)
-async def results(job_id: str) -> PipelineResult:
+def results(job_id: str) -> PipelineResult:
     """Return the full pipeline result, or 404/409 if not ready."""
     store: JobStore = app.state.store
     if not store.exists(job_id):

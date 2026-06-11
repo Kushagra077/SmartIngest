@@ -7,7 +7,7 @@ whole thing into a :class:`PipelineResult` returned by the API.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -135,8 +135,8 @@ class PipelineResult(BaseModel):
     route_reason: str = ""
     retries: int = 0
     error: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class UploadResponse(BaseModel):

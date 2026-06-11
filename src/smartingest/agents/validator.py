@@ -64,8 +64,9 @@ def _check_invoice(fields: ExtractedFields, rules: Rules) -> list[ValidationIssu
                 )
             )
 
-    # Vendor whitelist is a soft check (warning, not a hard error).
-    if not rules.is_vendor_whitelisted(fields.vendor_name):
+    # Vendor whitelist is a soft check (warning, not a hard error). A missing
+    # vendor is already an error via required-fields, so only warn when present.
+    if fields.vendor_name and not rules.is_vendor_whitelisted(fields.vendor_name):
         issues.append(
             ValidationIssue(
                 field="vendor_name",
