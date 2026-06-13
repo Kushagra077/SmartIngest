@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class DocumentType(str, Enum):
@@ -172,14 +172,40 @@ class ExtractedFields(BaseModel):
     # Free-form catch-all for fields outside the typed schema.
     extra: dict[str, str] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _sync_aliases(self) -> "ExtractedFields":
+        """Keep new field names and their back-compat aliases in lockstep.
+
+        The Extractor may populate either the spec name (``grand_total``,
+        ``party_names``, ``total_years_experience``) or the legacy one; mirror
+        whichever is set onto the other so every consumer (required-field
+        checks, grounding, reconciliation) sees a consistent value.
+        """
+        if self.grand_total is None and self.total_amount is not None:
+            self.grand_total = self.total_amount
+        elif self.total_amount is None and self.grand_total is not None:
+            self.total_amount = self.grand_total
+
+        if not self.party_names and self.parties:
+            self.party_names = list(self.parties)
+        elif not self.parties and self.party_names:
+            self.parties = list(self.party_names)
+
+        if self.total_years_experience is None and self.years_experience is not None:
+            self.total_years_experience = self.years_experience
+        elif self.years_experience is None and self.total_years_experience is not None:
+            self.years_experience = self.total_years_experience
+
+        return self
+
     @property
     def effective_total(self) -> float | None:
-        """Authoritative invoice total (``grand_total`` if set, else ``total_amount``)."""
+        """Authoritative invoice total (kept equal to ``grand_total``)."""
         return self.grand_total if self.grand_total is not None else self.total_amount
 
     @property
     def effective_parties(self) -> list[str]:
-        """Authoritative party list (``party_names`` if set, else ``parties``)."""
+        """Authoritative party list (kept equal to ``party_names``)."""
         return self.party_names or self.parties
 
 

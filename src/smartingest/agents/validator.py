@@ -61,24 +61,33 @@ def _check_invoice(fields: ExtractedFields, rules: Rules) -> list[ValidationIssu
     issues: list[ValidationIssue] = []
     total = fields.effective_total
 
-    # Reconcile: sum(line_totals) + tax + shipping - discount == grand_total.
-    if fields.line_items and total is not None:
-        line_sum = sum(item.effective_total for item in fields.line_items)
-        expected = round(
-            line_sum
-            + (fields.tax_amount or 0.0)
-            + (fields.shipping or 0.0)
-            - (fields.discount or 0.0),
-            2,
-        )
+    # Reconcile the grand total. Invoices vary in whether line totals and the
+    # stated subtotal are tax-inclusive or tax-exclusive, so we accept the total
+    # if *any* common interpretation reconciles within tolerance:
+    #   (a) subtotal + tax + shipping - discount        (canonical pre-tax base)
+    #   (b) sum(line_totals) + tax + shipping - discount (line totals excl. tax)
+    #   (c) sum(line_totals) + shipping - discount       (line totals incl. tax)
+    if total is not None and (fields.line_items or fields.subtotal is not None):
+        line_sum = round(sum(item.effective_total for item in fields.line_items), 2)
+        tax = fields.tax_amount or 0.0
+        shipping = fields.shipping or 0.0
+        discount = fields.discount or 0.0
         tolerance = rules.doc_type_rules("invoice").get("total_tolerance", 0.01)
-        if abs(expected - total) > tolerance:
+
+        candidates: list[float] = []
+        if fields.subtotal is not None:
+            candidates.append(round(fields.subtotal + tax + shipping - discount, 2))
+        if fields.line_items:
+            candidates.append(round(line_sum + tax + shipping - discount, 2))
+            candidates.append(round(line_sum + shipping - discount, 2))
+
+        if candidates and not any(abs(c - total) <= tolerance for c in candidates):
             issues.append(
                 ValidationIssue(
                     field="grand_total",
                     message=(
-                        f"Line items (+tax +shipping -discount) sum to {expected} "
-                        f"but grand total is {total} (tolerance {tolerance})."
+                        f"Grand total {total} does not reconcile with components "
+                        f"(candidates {sorted(set(candidates))}, tolerance {tolerance})."
                     ),
                 )
             )
