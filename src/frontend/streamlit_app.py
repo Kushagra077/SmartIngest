@@ -104,7 +104,10 @@ def main() -> None:
         st.markdown(f"**Backend:** `{API_URL}`")
         try:
             ok = requests.get(f"{API_URL}/healthz", timeout=5).status_code == 200
-            st.success("Backend online") if ok else st.error("Backend unreachable")
+            if ok:
+                st.success("Backend online")
+            else:
+                st.error("Backend unreachable")
         except requests.RequestException:
             st.error("Backend unreachable")
         st.markdown("---")
