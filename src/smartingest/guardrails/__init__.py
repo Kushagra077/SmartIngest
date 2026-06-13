@@ -17,11 +17,18 @@ from smartingest.guardrails.input_validation import (
     FileValidationError,
     validate_upload,
 )
-from smartingest.guardrails.pii import detect_pii, redact_pii
+from smartingest.guardrails.pii import (
+    detect_pii,
+    detect_sensitive_fields,
+    mask_value,
+    redact_pii,
+)
 
 __all__ = [
     "scan_for_injection",
     "detect_pii",
+    "detect_sensitive_fields",
+    "mask_value",
     "redact_pii",
     "validate_upload",
     "FileValidationError",

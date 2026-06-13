@@ -13,7 +13,12 @@ from __future__ import annotations
 
 import re
 
-from smartingest.models import SecurityCategory, SecurityFinding
+from smartingest.models import (
+    SENSITIVE_FIELD_NAMES,
+    ExtractedFields,
+    SecurityCategory,
+    SecurityFinding,
+)
 
 # (label, pattern, redaction placeholder)
 _PII_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
@@ -66,3 +71,34 @@ def redact_pii(text: str) -> str:
     for _, pattern, placeholder in _PII_PATTERNS:
         text = pattern.sub(placeholder, text)
     return text
+
+
+def mask_value(value: str | None) -> str:
+    """Mask a sensitive value for safe logging (keep last 4 chars only)."""
+    if not value:
+        return ""
+    s = str(value)
+    if len(s) <= 4:
+        return "*" * len(s)
+    return "*" * (len(s) - 4) + s[-4:]
+
+
+def detect_sensitive_fields(fields: ExtractedFields) -> list[SecurityFinding]:
+    """Report populated sensitive structured fields (values never echoed).
+
+    Bank details, ID numbers and dates of birth are flagged so downstream
+    consumers know to handle the record carefully. Reported as ``PII`` so they
+    drive awareness/redaction rather than the routing decision.
+    """
+    findings: list[SecurityFinding] = []
+    for name in sorted(SENSITIVE_FIELD_NAMES):
+        if getattr(fields, name, None):
+            findings.append(
+                SecurityFinding(
+                    category=SecurityCategory.PII,
+                    message=f"Sensitive field '{name}' is present and must be handled securely.",
+                    severity="warning",
+                    detail=f"field={name}",
+                )
+            )
+    return findings
