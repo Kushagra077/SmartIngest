@@ -32,6 +32,16 @@ class Rules:
     def vendor_whitelist(self) -> list[str]:
         return self._data.get("vendor_whitelist", [])
 
+    @property
+    def tax_id_formats(self) -> dict[str, str]:
+        """Regex patterns for well-formed vendor tax IDs, keyed by scheme."""
+        return self._data.get("tax_id_formats", {})
+
+    @property
+    def id_number_formats(self) -> dict[str, str]:
+        """Regex patterns for well-formed ID numbers, keyed by id_type."""
+        return self._data.get("id_number_formats", {})
+
     def doc_type_rules(self, document_type: str) -> dict[str, Any]:
         """Return the per-document-type rule block (empty if undefined)."""
         return self._data.get("document_types", {}).get(document_type, {})

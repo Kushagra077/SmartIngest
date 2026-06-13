@@ -63,22 +63,113 @@ matching this schema (omit fields that are not present):
 Also include a top-level "confidence" float (0-1) reflecting extraction quality.
 """
 
-_EXTRACT_SCHEMA_HINT = {
+# Per-document-type schema hints. Sending only the relevant subset to the model
+# keeps the prompt focused and avoids cross-type field bleed.
+_INVOICE_SCHEMA = {
     "vendor_name": "string",
     "invoice_number": "string",
     "invoice_date": "YYYY-MM-DD",
     "due_date": "YYYY-MM-DD",
-    "total_amount": "number",
-    "currency": "string",
-    "line_items": [{"description": "string", "quantity": 0, "unit_price": 0, "amount": 0}],
-    "parties": ["string"],
+    "po_number": "string",
+    "currency": "string (ISO code, e.g. INR/USD)",
+    "vendor_address": "string",
+    "vendor_tax_id": "string (GSTIN/VAT/EIN)",
+    "vendor_bank_details": "string (account/IBAN/IFSC)",
+    "bill_to": "string",
+    "ship_to": "string",
+    "line_items": [
+        {
+            "description": "string",
+            "quantity": 0,
+            "unit_price": 0,
+            "line_total": 0,
+            "hsn_sac_code": "string",
+            "tax_rate": 0,
+        }
+    ],
+    "subtotal": "number",
+    "tax_amount": "number",
+    "cgst": "number (Indian GST only)",
+    "sgst": "number (Indian GST only)",
+    "igst": "number (Indian GST only)",
+    "discount": "number",
+    "shipping": "number",
+    "grand_total": "number",
+    "payment_terms": "string",
+    "payment_method": "string",
+}
+
+_CONTRACT_SCHEMA = {
+    "party_names": ["string"],
+    "party_roles": {"<party name>": "client|vendor|other"},
     "effective_date": "YYYY-MM-DD",
+    "expiration_date": "YYYY-MM-DD",
+    "term_length": "string",
+    "renewal_type": "auto|manual",
+    "notice_period": "string",
+    "contract_value": "number",
+    "currency": "string",
+    "payment_schedule": "string",
+    "termination_clause": "short snippet or flag",
+    "liability_cap": "short snippet or flag",
+    "confidentiality": "short snippet or flag",
+    "governing_law": "string",
+    "jurisdiction": "string",
+    "signatures_present": "boolean",
+    "signatory_names": ["string"],
+}
+
+_RESUME_SCHEMA = {
+    "full_name": "string",
     "candidate_name": "string",
     "email": "string",
     "phone": "string",
+    "location": "string",
+    "links": ["string (LinkedIn/GitHub/portfolio URLs)"],
+    "total_years_experience": "number (derived)",
+    "work_history": [
+        {
+            "company": "string",
+            "title": "string",
+            "start_date": "YYYY-MM-DD or YYYY-MM",
+            "end_date": "YYYY-MM-DD or 'present'",
+            "responsibilities": ["string"],
+        }
+    ],
+    "education": [
+        {
+            "institution": "string",
+            "degree": "string",
+            "field": "string",
+            "graduation_year": "YYYY",
+        }
+    ],
+    "skills": ["string"],
+    "certifications": ["string"],
+    "languages": ["string"],
+}
+
+_ID_SCHEMA = {
+    "id_type": "passport|drivers_license|aadhaar|pan|other",
     "full_name": "string",
     "id_number": "string",
+    "date_of_birth": "YYYY-MM-DD",
+    "expiry_date": "YYYY-MM-DD",
+    "issuing_authority": "string",
+    "nationality": "string",
 }
+
+_SCHEMA_BY_TYPE: dict[DocumentType, dict] = {
+    DocumentType.INVOICE: _INVOICE_SCHEMA,
+    DocumentType.CONTRACT: _CONTRACT_SCHEMA,
+    DocumentType.RESUME: _RESUME_SCHEMA,
+    DocumentType.ID_DOCUMENT: _ID_SCHEMA,
+}
+
+
+def _schema_for(document_type: DocumentType) -> dict:
+    """Return the field-schema hint for a document type (invoice as fallback)."""
+    return _SCHEMA_BY_TYPE.get(document_type, _INVOICE_SCHEMA)
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +229,7 @@ class GeminiClient:
     ) -> tuple[ExtractedFields, float]:
         prompt = _EXTRACT_PROMPT.format(
             doc_type=document_type.value,
-            schema=json.dumps(_EXTRACT_SCHEMA_HINT, indent=2),
+            schema=json.dumps(_schema_for(document_type), indent=2),
         )
         payload = self._generate_json(prompt, file_path, mime_type)
         return _fields_from_payload(payload)
@@ -197,24 +288,46 @@ class MockLLMClient:
             fields.vendor_name = _first_match(text, r"(?:vendor|from)\s*[:\-]\s*(.+)")
             fields.invoice_number = _first_match(text, r"invoice\s*#\s*:?\s*(\S+)")
             fields.invoice_date = _first_match(text, r"date\s*[:\-]\s*(\d{4}-\d{2}-\d{2})")
-            total = _first_match(text, r"total\s*[:\-]?\s*\$?\s*([\d,]+\.?\d*)")
+            fields.due_date = _first_match(text, r"due\s*date\s*[:\-]\s*(\d{4}-\d{2}-\d{2})")
+            fields.po_number = _first_match(text, r"(?:po|p\.o\.)\s*#?\s*[:\-]?\s*(\S+)")
+            total = _first_match(text, r"(?:grand\s*)?total\s*[:\-]?\s*\$?\s*([\d,]+\.?\d*)")
             fields.total_amount = _to_float(total)
+            fields.grand_total = fields.total_amount
+            fields.subtotal = _to_float(_first_match(text, r"subtotal\s*[:\-]?\s*\$?\s*([\d,]+\.?\d*)"))
+            fields.tax_amount = _to_float(_first_match(text, r"tax\s*[:\-]?\s*\$?\s*([\d,]+\.?\d*)"))
+            fields.vendor_tax_id = _first_match(text, r"(?:gstin|vat|ein|tax\s*id)\s*[:\-]?\s*(\S+)")
+            fields.payment_terms = _first_match(text, r"(?:payment\s*)?terms\s*[:\-]\s*(.+)")
             fields.currency = "USD"
             confidence = 0.85 if fields.total_amount is not None else 0.5
             fields.line_items = _parse_line_items(text)
         elif document_type == DocumentType.CONTRACT:
-            party = _first_match(text, r"between\s+(.+?)\s+and\s+(.+)")
+            party = re.search(r"between\s+(.+?)\s+and\s+(.+?)[.\n]", text, re.IGNORECASE)
             if party:
-                fields.parties = [p.strip() for p in party.split(" and ")]
+                names = [party.group(1).strip(), party.group(2).strip()]
+                fields.parties = names
+                fields.party_names = names
             fields.effective_date = _first_match(text, r"effective\s+date\s*[:\-]\s*(\d{4}-\d{2}-\d{2})")
-            confidence = 0.8 if fields.parties else 0.5
+            fields.expiration_date = _first_match(text, r"(?:expir\w+|end)\s*date\s*[:\-]\s*(\d{4}-\d{2}-\d{2})")
+            fields.governing_law = _first_match(text, r"governing\s+law\s*[:\-]\s*(.+)")
+            fields.signatures_present = bool(re.search(r"signature|signed|/s/", text, re.IGNORECASE))
+            confidence = 0.8 if fields.party_names else 0.5
         elif document_type == DocumentType.RESUME:
             fields.candidate_name = _first_match(text, r"name\s*[:\-]\s*(.+)")
+            fields.full_name = fields.candidate_name
             fields.email = _first_match(text, r"[\w.\-]+@[\w.\-]+\.\w+")
+            fields.phone = _first_match(text, r"(?:\+?\d{1,3}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}")
+            fields.location = _first_match(text, r"location\s*[:\-]\s*(.+)")
+            fields.links = re.findall(r"https?://\S+", text)
+            skills = _first_match(text, r"skills\s*[:\-]\s*(.+)")
+            if skills:
+                fields.skills = [s.strip() for s in re.split(r"[,;]", skills) if s.strip()]
             confidence = 0.8 if fields.email else 0.5
         elif document_type == DocumentType.ID_DOCUMENT:
             fields.full_name = _first_match(text, r"name\s*[:\-]\s*(.+)")
             fields.id_number = _first_match(text, r"id\s*(?:number|#)?\s*[:\-]?\s*(\S+)")
+            fields.id_type = _first_match(text, r"(passport|driver'?s?\s*licen[cs]e|aadhaar|pan)")
+            fields.date_of_birth = _first_match(text, r"(?:dob|date\s+of\s+birth)\s*[:\-]\s*(\d{4}-\d{2}-\d{2})")
+            fields.expiry_date = _first_match(text, r"(?:expir\w+)\s*[:\-]?\s*(\d{4}-\d{2}-\d{2})")
             confidence = 0.8 if fields.id_number else 0.5
 
         return fields, round(confidence, 2)
@@ -258,6 +371,7 @@ def _parse_line_items(text: str) -> list[LineItem]:
                 quantity=float(qty),
                 unit_price=float(unit),
                 amount=float(amount),
+                line_total=float(amount),
             )
         )
     return items
