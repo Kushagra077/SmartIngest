@@ -29,3 +29,7 @@ data/uploads/
 .DS_Store
 .idea/
 .vscode/
+
+# CLAUDE.md
+CLAUDE.md
+.claude/
