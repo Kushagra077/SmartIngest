@@ -26,7 +26,7 @@ Or headless, via the CLI:
 
 ```bash
 make run    # data/samples/invoice_acme.txt → auto_approve
-PYTHONPATH=src .venv/bin/python -m smartingest.cli data/samples/invoice_unknown_vendor.txt   # → flag_for_review
+uv run python -m smartingest.cli data/samples/invoice_unknown_vendor.txt   # → flag_for_review
 ```
 
 Save screenshots into this folder as `01-auto-approve.png`, `02-flag-review.png`,

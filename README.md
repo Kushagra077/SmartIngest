@@ -54,9 +54,12 @@ The pipeline is fronted by **security guardrails** and backed by an
 
 ## Quickstart
 
+This project uses [uv](https://docs.astral.sh/uv/) for dependency and
+environment management.
+
 ```bash
-# 1. Install
-make install                      # or: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# 1. Install (uv creates the .venv and a managed Python automatically)
+make install                      # or: uv sync
 cp .env.example .env              # defaults to mock-LLM mode — runs with no API key
 
 # 2. Run the tests
@@ -155,7 +158,7 @@ deterministic decision.
 
 ```bash
 # A document carrying an injection payload is rejected:
-PYTHONPATH=src .venv/bin/python -m smartingest.cli data/eval/docs/invoice_injection.txt
+uv run python -m smartingest.cli data/eval/docs/invoice_injection.txt
 # → "route": "reject", security_findings: [injection]
 ```
 
@@ -193,7 +196,7 @@ SmartIngest/
 
 ## Tech stack
 
-LangGraph · Gemini API (multimodal) · FastAPI · Pydantic v2 · LangSmith · Streamlit · SQLite
+LangGraph · Gemini API (multimodal) · FastAPI · Pydantic v2 · LangSmith · Streamlit · SQLite · uv
 
 ## Testing
 
