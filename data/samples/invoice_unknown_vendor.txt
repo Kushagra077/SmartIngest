@@ -1,0 +1,10 @@
+INVOICE
+Vendor: Sketchy Holdings LLC
+Invoice #: SH-99821
+Date: 2026-02-03
+Bill to: Wayne Enterprises
+
+1 x Consulting @ $9500.00 = $9500.00
+
+Total: $9500.00
+Amount due in 30 days.
