@@ -73,6 +73,24 @@ def test_upload_empty_file_rejected(client):
     assert client.post("/upload", files=files).status_code == 400
 
 
+def test_rate_limit_returns_429(tmp_path, monkeypatch):
+    monkeypatch.setenv("SMARTINGEST_MOCK_LLM", "true")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("SMARTINGEST_DB_PATH", str(tmp_path / "jobs.db"))
+    monkeypatch.setenv("SMARTINGEST_UPLOAD_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("SMARTINGEST_RATE_LIMIT_PER_MINUTE", "1")
+    from smartingest.config import get_settings
+
+    get_settings.cache_clear()
+    files = {"file": ("invoice.txt", b"INVOICE\nTotal: $1.00\n", "text/plain")}
+    with TestClient(app) as c:
+        assert c.post("/upload", files=files).status_code == 200
+        second = c.post("/upload", files=files)
+        assert second.status_code == 429
+        assert "Retry-After" in second.headers
+    get_settings.cache_clear()
+
+
 def test_status_unknown_job(client):
     assert client.get("/status/does-not-exist").status_code == 404
 

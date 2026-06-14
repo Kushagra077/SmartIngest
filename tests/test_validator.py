@@ -35,6 +35,22 @@ def test_missing_required_field_flagged(rules, settings):
     assert "invoice_date" in fields_flagged
 
 
+def test_zero_total_is_not_treated_as_missing(rules, settings):
+    """A legitimate 0.00 total must not be flagged as a missing required field."""
+    state = _invoice_state(
+        vendor_name="Acme Corp",
+        invoice_number="INV-1",
+        invoice_date="2026-01-15",
+        total_amount=0.0,
+    )
+    out = validator_node(state, rules=rules, settings=settings)
+    missing = [
+        i for i in out["validation_issues"]
+        if i.field == "total_amount" and "missing" in i.message
+    ]
+    assert missing == []
+
+
 def test_total_mismatch_flagged(rules, settings):
     state = _invoice_state(
         vendor_name="Acme Corp",

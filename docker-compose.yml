@@ -1,0 +1,33 @@
+# Two services from one image: the FastAPI backend and the Streamlit UI.
+# Run with:  docker compose up --build
+#   UI  -> http://localhost:8501
+#   API -> http://localhost:8000  (docs at /docs)
+services:
+  api:
+    build: .
+    image: smartingest
+    command: uvicorn smartingest.api:app --app-dir src --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ui:
+    build: .
+    image: smartingest
+    command: streamlit run src/frontend/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    env_file: .env
+    # Inside the compose network the UI reaches the API by service name.
+    environment:
+      SMARTINGEST_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy

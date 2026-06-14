@@ -1,0 +1,31 @@
+# Build context exclusions — keep the image small and secrets out.
+.git
+.github
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*.egg-info
+.eggs
+build
+dist
+
+# Secrets — provided at runtime via env_file / platform secrets, never baked in.
+.env
+
+# Local data (DB + uploaded files); curated samples are still copied.
+data/jobs.db
+data/uploads
+
+# Tooling caches & dev-only assets
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.DS_Store
+.idea
+.vscode
+demo
+CLAUDE.md
+.claude

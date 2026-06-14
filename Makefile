@@ -1,4 +1,4 @@
-.PHONY: install test api ui run eval lock export clean
+.PHONY: install test api ui run eval lock export clean up down
 
 install:  ## Create the uv-managed venv and install all dependencies (incl. dev)
 	uv sync
@@ -23,6 +23,12 @@ run:  ## Run one sample document through the pipeline (CLI)
 
 eval:  ## Run the evaluation harness over the golden dataset
 	uv run python -m smartingest.eval.runner
+
+up:  ## Build and run both services (API + UI) via Docker Compose
+	docker compose up --build
+
+down:  ## Stop and remove the Docker Compose stack
+	docker compose down
 
 clean:  ## Remove caches and local data
 	rm -rf .pytest_cache **/__pycache__ data/jobs.db data/uploads

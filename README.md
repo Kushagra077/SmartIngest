@@ -8,6 +8,10 @@
 Built for the kind of bespoke invoice/document automation that companies pay
 $200–500/month of SaaS for — but wired to *your* rules and workflow.
 
+![SmartIngest auto-approving an invoice](demo/01-auto-approve.png)
+
+> More screenshots (flag-for-review, reject) in [`demo/`](demo/README.md).
+
 ---
 
 ## Architecture
@@ -81,6 +85,37 @@ In `.env`, set:
 SMARTINGEST_MOCK_LLM=false
 GEMINI_API_KEY=your-key-here
 GEMINI_MODEL=gemini-2.0-flash
+```
+
+The CLI and the evaluation runner honour this configured mode. To force the
+offline path for a single run regardless of `.env` — handy for a deterministic
+CI gate or a no-network demo — pass `--mock`:
+
+```bash
+uv run python -m smartingest.cli data/samples/invoice_acme.txt --mock
+uv run python -m smartingest.eval.runner --mock
+```
+
+### Resilience: model fallback + rate limiting
+
+Two safeguards make a public, real-Gemini demo survivable on a free tier:
+
+- **Automatic model fallback** — `GEMINI_MODEL_FALLBACKS` lists ordered backup
+  models. When the primary is rate-limited or overloaded (HTTP 429 / 503), the
+  client transparently fails over to the next model, so a quota cap on one model
+  doesn't take the pipeline down.
+- **Rate limiting** — `/upload` enforces a per-client per-minute cap *and* a
+  **global daily cap** (`SMARTINGEST_RATE_LIMIT_PER_DAY`). The global cap is the
+  quota ceiling: it bounds total LLM calls per day across all visitors so a
+  shared demo link can't drain your key.
+
+### Deployment
+
+A `Dockerfile`, `docker-compose.yml`, and a full [`DEPLOY.md`](DEPLOY.md) guide
+(local Docker, Render/Railway, Streamlit Cloud) are included:
+
+```bash
+make up      # docker compose up --build → UI :8501, API :8000
 ```
 
 ### Enabling LangSmith tracing
@@ -190,7 +225,7 @@ SmartIngest/
 │   │   └── eval/           ← dataset · metrics · runner · LangSmith experiment
 │   └── frontend/streamlit_app.py
 ├── data/eval/             ← golden dataset + labeled documents
-├── tests/                 ← pytest suite (47 tests)
+├── tests/                 ← pytest suite (57 tests)
 └── requirements.txt
 ```
 
@@ -201,7 +236,7 @@ LangGraph · Gemini API (multimodal) · FastAPI · Pydantic v2 · LangSmith · S
 ## Testing
 
 ```bash
-make test        # 47 tests: agents, rules, store, guardrails, eval, graph, API
+make test        # 57 tests: agents, rules, store, guardrails, eval, graph, API
 ```
 
 The suite runs entirely in mock-LLM mode, so it needs no API key or network.

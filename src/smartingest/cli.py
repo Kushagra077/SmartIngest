@@ -9,12 +9,25 @@ from __future__ import annotations
 
 import argparse
 import mimetypes
+import os
 import sys
 import uuid
 
+from smartingest.config import get_settings
 from smartingest.graph import run_pipeline
 from smartingest.guardrails import redact_pii
 from smartingest.logging_config import configure_logging
+
+
+def _force_mock_llm() -> None:
+    """Pin the process to offline mock-LLM mode, regardless of ``.env``.
+
+    An actual environment variable overrides any ``.env`` value in
+    ``pydantic-settings``; clearing the cache ensures the override is picked up
+    even if settings were read earlier in the process.
+    """
+    os.environ["SMARTINGEST_MOCK_LLM"] = "true"
+    get_settings.cache_clear()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,7 +39,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Mask detected PII (emails, phones, SSNs, cards) in the output.",
     )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Force offline mock-LLM mode (no API calls), overriding .env.",
+    )
     args = parser.parse_args(argv)
+
+    if args.mock:
+        _force_mock_llm()
 
     configure_logging()
     mime = args.mime or mimetypes.guess_type(args.path)[0] or "text/plain"

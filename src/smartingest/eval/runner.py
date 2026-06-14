@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
+from smartingest.config import get_settings
 from smartingest.eval.dataset import DEFAULT_DATASET, EvalExample, load_dataset
 from smartingest.eval.metrics import EvalReport, evaluate_all
 from smartingest.graph import run_pipeline
@@ -53,7 +55,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-classification", type=float, default=0.8)
     parser.add_argument("--min-routing", type=float, default=0.8)
     parser.add_argument("--min-field-f1", type=float, default=0.7)
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Force offline mock-LLM mode (no API calls), overriding .env.",
+    )
     args = parser.parse_args(argv)
+
+    if args.mock:
+        # An actual env var overrides any .env value in pydantic-settings;
+        # clear the cache so the override is honoured.
+        os.environ["SMARTINGEST_MOCK_LLM"] = "true"
+        get_settings.cache_clear()
 
     configure_logging()
     report = run_evaluation(args.dataset)

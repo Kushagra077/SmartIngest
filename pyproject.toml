@@ -38,6 +38,11 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "httpx>=0.27.0",
 ]
+# Opt-in group for regenerating the demo screenshots (heavy; not needed to run
+# or test the app). Install with: uv sync --group capture
+capture = [
+    "playwright>=1.44.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

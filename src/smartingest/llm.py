@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from typing import Protocol
 
+from pydantic import ValidationError
+
 from smartingest.config import Settings
 from smartingest.logging_config import get_logger
 from smartingest.models import (
@@ -177,10 +179,20 @@ def _schema_for(document_type: DocumentType) -> dict:
 # ---------------------------------------------------------------------------
 
 
-class GeminiClient:
-    """Real Gemini-backed client using the ``google-genai`` SDK."""
+# HTTP status codes that warrant failing over to a backup model rather than
+# giving up: 429 (rate limit / quota exhausted), 503 (model overloaded).
+_FAILOVER_CODES = frozenset({429, 503})
 
-    def __init__(self, api_key: str, model: str) -> None:
+
+class GeminiClient:
+    """Real Gemini-backed client using the ``google-genai`` SDK.
+
+    Accepts an ordered list of models and transparently fails over to the next
+    one when the current model is rate-limited or overloaded, so a quota cap on
+    the primary model doesn't take the whole pipeline down.
+    """
+
+    def __init__(self, api_key: str, models: str | list[str]) -> None:
         try:
             from google import genai  # type: ignore
         except ImportError as exc:  # pragma: no cover - import guard
@@ -190,7 +202,14 @@ class GeminiClient:
 
         self._genai = genai
         self._client = genai.Client(api_key=api_key)
-        self._model = model
+        self._models = [models] if isinstance(models, str) else list(models)
+        if not self._models:
+            raise LLMError("GeminiClient requires at least one model.")
+
+    @property
+    def _model(self) -> str:
+        """The primary (first) model — retained for backwards-compatible access."""
+        return self._models[0]
 
     def _read_part(self, file_path: str, mime_type: str):
         """Build a Gemini content part from a file on disk."""
@@ -203,22 +222,48 @@ class GeminiClient:
         return types.Part.from_bytes(data=data, mime_type=mime_type)
 
     def _generate_json(self, prompt: str, file_path: str, mime_type: str) -> dict:
-        """Call Gemini requesting a JSON response and parse it."""
-        from google.genai import types  # type: ignore
+        """Call Gemini requesting a JSON response, failing over across models.
 
-        try:
-            response = self._client.models.generate_content(
-                model=self._model,
-                contents=[prompt, self._read_part(file_path, mime_type)],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.0,
-                ),
-            )
-        except Exception as exc:  # pragma: no cover - network failure path
-            raise LLMError(f"Gemini request failed: {exc}") from exc
+        Tries each model in order. On a rate-limit/overload error it moves to
+        the next model; any other error aborts immediately. If every model is
+        exhausted the last failover error is surfaced as an :class:`LLMError`.
+        """
+        from google.genai import errors, types  # type: ignore
 
-        return _safe_json_loads(response.text or "{}")
+        part = self._read_part(file_path, mime_type)
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.0,
+        )
+
+        last_error: Exception | None = None
+        for model in self._models:
+            try:
+                response = self._client.models.generate_content(
+                    model=model,
+                    contents=[prompt, part],
+                    config=config,
+                )
+            except errors.APIError as exc:
+                if getattr(exc, "code", None) in _FAILOVER_CODES:
+                    logger.warning(
+                        "Model %s unavailable (code=%s); failing over to next model.",
+                        model,
+                        getattr(exc, "code", "?"),
+                    )
+                    last_error = exc
+                    continue
+                raise LLMError(f"Gemini request failed on {model}: {exc}") from exc
+            except Exception as exc:  # pragma: no cover - network failure path
+                raise LLMError(f"Gemini request failed on {model}: {exc}") from exc
+
+            if model != self._models[0]:
+                logger.info("Served by fallback model %s.", model)
+            return _safe_json_loads(response.text or "{}")
+
+        raise LLMError(
+            f"All Gemini models exhausted ({', '.join(self._models)}): {last_error}"
+        )
 
     def classify(self, file_path: str, mime_type: str) -> ClassificationResult:
         payload = self._generate_json(_CLASSIFY_PROMPT, file_path, mime_type)
@@ -414,11 +459,26 @@ def _fields_from_payload(payload: dict) -> tuple[ExtractedFields, float]:
     # Drop the confidence key before validating against the field schema.
     field_payload = {k: v for k, v in payload.items() if k != "confidence"}
     try:
-        fields = ExtractedFields.model_validate(field_payload)
-    except Exception as exc:  # noqa: BLE001 - tolerate partial/extra fields
-        logger.warning("Extraction payload validation failed: %s", exc)
-        fields = ExtractedFields(extra={"raw": json.dumps(field_payload)[:500]})
-    return fields, confidence
+        return ExtractedFields.model_validate(field_payload), confidence
+    except ValidationError as exc:
+        # Salvage: drop only the top-level keys that failed to parse and keep
+        # the rest, rather than discarding the whole extraction over one bad
+        # field. (Explicit nulls are already absorbed by ``_NullTolerantModel``;
+        # this catches genuinely malformed values, e.g. a string where a number
+        # is expected.)
+        bad_keys = {loc[0] for e in exc.errors() if (loc := e["loc"])}
+        salvaged = {k: v for k, v in field_payload.items() if k not in bad_keys}
+        try:
+            fields = ExtractedFields.model_validate(salvaged)
+        except ValidationError:
+            logger.warning("Extraction payload validation failed: %s", exc)
+            return ExtractedFields(extra={"raw": json.dumps(field_payload)[:500]}), confidence
+        logger.warning(
+            "Dropped %d unparseable field(s) from extraction: %s",
+            len(bad_keys),
+            sorted(bad_keys),
+        )
+        return fields, confidence
 
 
 def get_llm_client(settings: Settings) -> LLMClient:
@@ -426,5 +486,6 @@ def get_llm_client(settings: Settings) -> LLMClient:
     if settings.use_mock_llm:
         logger.info("Using MockLLMClient (no Gemini calls will be made).")
         return MockLLMClient()
-    logger.info("Using GeminiClient with model %s", settings.gemini_model)
-    return GeminiClient(api_key=settings.gemini_api_key, model=settings.gemini_model)
+    chain = settings.gemini_model_chain
+    logger.info("Using GeminiClient with model chain: %s", " -> ".join(chain))
+    return GeminiClient(api_key=settings.gemini_api_key, models=chain)
