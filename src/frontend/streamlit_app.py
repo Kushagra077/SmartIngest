@@ -16,6 +16,9 @@ import time
 import requests
 import streamlit as st
 
+from smartingest.guardrails import mask_value, redact_pii
+from smartingest.models import SENSITIVE_FIELD_NAMES
+
 API_URL = os.environ.get("SMARTINGEST_API_URL", "http://localhost:8000")
 
 ROUTE_STYLE = {
@@ -69,8 +72,31 @@ def poll_result(job_id: str, placeholder, timeout: float = 60.0) -> dict | None:
     return None
 
 
-def render_result(result: dict) -> None:
-    """Render the final pipeline result."""
+def redact_fields(value, key=None):
+    """Recursively redact PII from extracted fields for safe display.
+
+    Sensitive named fields (``id_number``, ``date_of_birth``,
+    ``vendor_bank_details``) are masked to their last 4 characters; every other
+    string value is scrubbed of free-text PII (emails, phones, SSNs, cards).
+    """
+    if isinstance(value, dict):
+        return {k: redact_fields(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_fields(v, key) for v in value]
+    if isinstance(value, str):
+        if key in SENSITIVE_FIELD_NAMES:
+            return mask_value(value)
+        return redact_pii(value)
+    return value
+
+
+def render_result(result: dict, redact: bool = True) -> None:
+    """Render the final pipeline result.
+
+    Args:
+        result: The pipeline result payload from the API.
+        redact: When ``True`` (default), mask PII in the extracted fields.
+    """
     route = result.get("route")
     label, kind = ROUTE_STYLE.get(route, ("Unknown", "info"))
     getattr(st, kind)(f"{label} — {result.get('route_reason', '')}")
@@ -82,6 +108,9 @@ def render_result(result: dict) -> None:
 
     st.subheader("Extracted fields")
     fields = {k: v for k, v in (result.get("fields") or {}).items() if v not in (None, [], {}, "")}
+    if redact:
+        fields = redact_fields(fields)
+        st.caption("🔒 PII is masked. Toggle *Reveal sensitive values* in the sidebar to show raw data.")
     st.json(fields)
 
     issues = result.get("validation_issues") or []
@@ -111,6 +140,12 @@ def main() -> None:
         except requests.RequestException:
             st.error("Backend unreachable")
         st.markdown("---")
+        reveal = st.toggle(
+            "Reveal sensitive values",
+            value=False,
+            help="When off, emails, phones, IDs and bank details are masked in the results.",
+        )
+        st.markdown("---")
         st.markdown(
             "Try a `.txt` invoice like:\n\n"
             "```\nINVOICE\nVendor: Acme Corp\nInvoice #: INV-1\n"
@@ -127,7 +162,7 @@ def main() -> None:
             st.caption(f"Job ID: `{job_id}`")
             result = poll_result(job_id, st.empty())
             if result:
-                render_result(result)
+                render_result(result, redact=not reveal)
 
 
 if __name__ == "__main__":
