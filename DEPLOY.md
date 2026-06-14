@@ -77,6 +77,10 @@ the API elsewhere (section 3), then on Streamlit Cloud:
 - App file: `src/frontend/streamlit_app.py`
 - Secret: `SMARTINGEST_API_URL = "https://<your-api-host>"`
 
+`requirements.txt` installs the `smartingest` package itself (its last line is
+`.`), so the UI's `from smartingest...` imports resolve in Streamlit Cloud's
+pip-based environment.
+
 (If you later want a single free deploy with no separate backend, the UI can be
 refactored to call the pipeline in-process — ask and I'll wire it up.)
 
@@ -85,7 +89,7 @@ refactored to call the pipeline in-process — ask and I'll wire it up.)
 ## 5. Pre-deploy checklist
 
 ```bash
-make test                                        # 67 tests, all offline
+make test                                        # 72 tests, all offline
 uv run python -m smartingest.eval.runner --mock  # eval gate, no API spend
 docker compose up --build                        # smoke-test both services
 ```

@@ -30,3 +30,10 @@ pillow>=10.0.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 httpx>=0.27.0
+
+# --- Local package ---
+# Install the project itself, not just its deps, so `pip install -r
+# requirements.txt` exposes the `smartingest` package. Required on Streamlit
+# Community Cloud, whose pip-based deploy runs the UI (which imports
+# smartingest.guardrails/models). uv and the Docker image install it anyway.
+.
