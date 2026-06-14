@@ -9,8 +9,41 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+from typing import get_args
 
 from pydantic import BaseModel, Field, model_validator
+
+
+def _field_allows_none(annotation: object) -> bool:
+    """True if a field's type annotation permits ``None`` (i.e. it is Optional)."""
+    return annotation is type(None) or type(None) in get_args(annotation)
+
+
+class _NullTolerantModel(BaseModel):
+    """Base model that drops explicit ``null``s for non-Optional fields.
+
+    LLM extractors routinely emit ``"field": null`` for absent values. For a
+    field declared non-Optional with a default (e.g. ``description: str = ""``
+    or ``line_items: list = []``) such a null would raise a validation error
+    and historically sink the *entire* extraction. Dropping the key lets the
+    field's default apply instead, so one stray null no longer discards good
+    sibling fields.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_nulls_for_nonoptional(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        cleaned = dict(data)
+        for name, info in cls.model_fields.items():
+            if (
+                name in cleaned
+                and cleaned[name] is None
+                and not _field_allows_none(info.annotation)
+            ):
+                cleaned.pop(name)
+        return cleaned
 
 
 class DocumentType(str, Enum):
@@ -40,7 +73,7 @@ class RouteDecision(str, Enum):
     REJECT = "reject"
 
 
-class LineItem(BaseModel):
+class LineItem(_NullTolerantModel):
     """A single invoice line item."""
 
     description: str = ""
@@ -59,7 +92,7 @@ class LineItem(BaseModel):
         return self.line_total if self.line_total is not None else self.amount
 
 
-class WorkExperience(BaseModel):
+class WorkExperience(_NullTolerantModel):
     """A single role in a resume's work history."""
 
     company: str = ""
@@ -69,7 +102,7 @@ class WorkExperience(BaseModel):
     responsibilities: list[str] = Field(default_factory=list)
 
 
-class Education(BaseModel):
+class Education(_NullTolerantModel):
     """A single education entry on a resume."""
 
     institution: str = ""
@@ -78,7 +111,7 @@ class Education(BaseModel):
     graduation_year: str | None = None
 
 
-class ExtractedFields(BaseModel):
+class ExtractedFields(_NullTolerantModel):
     """Structured fields extracted from a document.
 
     The schema is intentionally a superset across document types; only the

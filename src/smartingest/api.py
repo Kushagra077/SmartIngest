@@ -17,7 +17,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 
 from smartingest.config import get_settings
 from smartingest.guardrails import FileValidationError, validate_upload
@@ -28,6 +28,7 @@ from smartingest.models import (
     StatusResponse,
     UploadResponse,
 )
+from smartingest.ratelimit import RateLimiter, RateLimitExceeded
 from smartingest.store import JobStore
 from smartingest.tracing import configure_tracing
 from smartingest.worker import PipelineWorker
@@ -43,6 +44,11 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
     app.state.store = JobStore(settings.smartingest_db_path)
     app.state.worker = PipelineWorker(app.state.store)
+    app.state.rate_limiter = RateLimiter(
+        per_minute=settings.smartingest_rate_limit_per_minute,
+        per_day=settings.smartingest_rate_limit_per_day,
+        enabled=settings.smartingest_rate_limit_enabled,
+    )
     app.state.upload_dir = Path(settings.smartingest_upload_dir)
     app.state.upload_dir.mkdir(parents=True, exist_ok=True)
     logger.info("SmartIngest API started (mock_llm=%s).", settings.use_mock_llm)
@@ -69,12 +75,24 @@ async def healthz() -> dict[str, str]:
 
 
 @app.post("/upload", response_model=UploadResponse)
-async def upload(file: UploadFile = File(...)) -> UploadResponse:
+async def upload(request: Request, file: UploadFile = File(...)) -> UploadResponse:
     """Accept a document and enqueue it for processing.
 
     Returns immediately with a ``job_id``; processing happens in the
     background.
     """
+    # Rate guard: protect the LLM quota before doing any work.
+    limiter: RateLimiter = app.state.rate_limiter
+    client_id = request.client.host if request.client else "unknown"
+    try:
+        limiter.check(client_id)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="A filename is required.")
 

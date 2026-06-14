@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 
 import requests
 import streamlit as st
@@ -20,6 +21,16 @@ from smartingest.guardrails import mask_value, redact_pii
 from smartingest.models import SENSITIVE_FIELD_NAMES
 
 API_URL = os.environ.get("SMARTINGEST_API_URL", "http://localhost:8000")
+
+# Bundled documents a visitor can try without uploading their own file. Paths
+# are resolved relative to the repo root so they work locally and in Docker.
+_ROOT = Path(__file__).resolve().parents[2]
+SAMPLE_DOCS: dict[str, str] = {
+    "🧾 Clean invoice → auto-approve": "data/samples/invoice_acme.txt",
+    "🏷️ Unknown vendor → flag for review": "data/samples/invoice_unknown_vendor.txt",
+    "🛡️ Injection attempt → reject": "data/eval/docs/invoice_injection.txt",
+    "📇 Résumé → auto-approve": "data/samples/resume_jane.txt",
+}
 
 ROUTE_STYLE = {
     "auto_approve": ("✅ Auto-approved", "success"),
@@ -30,19 +41,32 @@ ROUTE_STYLE = {
 PIPELINE_STAGES = ["Classifier", "Extractor", "Validator", "Router"]
 
 
-def upload_document(file) -> str | None:
-    """Upload a file and return its job_id, or None on failure."""
+def upload_document(name: str, data: bytes, mime: str) -> str | None:
+    """Upload raw bytes and return the job_id, or None on failure."""
     try:
         resp = requests.post(
             f"{API_URL}/upload",
-            files={"file": (file.name, file.getvalue(), file.type or "application/octet-stream")},
+            files={"file": (name, data, mime or "application/octet-stream")},
             timeout=30,
         )
         resp.raise_for_status()
     except requests.RequestException as exc:
-        st.error(f"Upload failed: {exc}")
+        if getattr(exc.response, "status_code", None) == 429:
+            st.warning("Rate limit reached — please wait a moment and retry.")
+        else:
+            st.error(f"Upload failed: {exc}")
         return None
     return resp.json()["job_id"]
+
+
+def run_and_render(name: str, data: bytes, mime: str, reveal: bool) -> None:
+    """Upload a document, poll to completion, and render the result."""
+    job_id = upload_document(name, data, mime)
+    if job_id:
+        st.caption(f"Job ID: `{job_id}`")
+        result = poll_result(job_id, st.empty())
+        if result:
+            render_result(result, redact=not reveal)
 
 
 def poll_result(job_id: str, placeholder, timeout: float = 60.0) -> dict | None:
@@ -157,12 +181,21 @@ def main() -> None:
         type=["pdf", "png", "jpg", "jpeg", "txt"],
     )
     if uploaded and st.button("Run pipeline", type="primary"):
-        job_id = upload_document(uploaded)
-        if job_id:
-            st.caption(f"Job ID: `{job_id}`")
-            result = poll_result(job_id, st.empty())
-            if result:
-                render_result(result, redact=not reveal)
+        run_and_render(
+            uploaded.name, uploaded.getvalue(), uploaded.type or "", reveal
+        )
+
+    st.markdown("**…or try a bundled sample:**")
+    cols = st.columns(2)
+    for i, (label, rel_path) in enumerate(SAMPLE_DOCS.items()):
+        if cols[i % 2].button(label, use_container_width=True):
+            path = _ROOT / rel_path
+            try:
+                data = path.read_bytes()
+            except OSError:
+                st.error(f"Sample not found: {rel_path}")
+            else:
+                run_and_render(path.name, data, "text/plain", reveal)
 
 
 if __name__ == "__main__":

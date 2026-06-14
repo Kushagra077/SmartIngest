@@ -42,14 +42,31 @@ def _read_source_text(file_path: str) -> str:
         return ""
 
 
+def _is_empty(value: object) -> bool:
+    """Whether a field value counts as missing.
+
+    Treats ``None``, blank strings and empty collections as missing, but *not*
+    a numeric ``0`` / ``0.0`` or boolean ``False`` — those are legitimate
+    extracted values (e.g. an invoice total of ``0.00``) and must not be
+    reported as absent. (Plain ``in (None, "", [], 0)`` would, since
+    ``0 == 0.0 == False``.)
+    """
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, dict, set, tuple)):
+        return len(value) == 0
+    return False
+
+
 def _check_required_fields(
     fields: ExtractedFields, required: list[str]
 ) -> list[ValidationIssue]:
     """Flag any required field that is missing or empty."""
     issues: list[ValidationIssue] = []
     for name in required:
-        value = getattr(fields, name, None)
-        if value in (None, "", [], 0):
+        if _is_empty(getattr(fields, name, None)):
             issues.append(
                 ValidationIssue(field=name, message=f"Required field '{name}' is missing.")
             )

@@ -122,7 +122,7 @@ keyword/regex heuristics.
 Why this matters:
 
 - The pipeline **never hard-fails for lack of credentials.**
-- The full test-suite (28 tests, including the end-to-end graph and API flows)
+- The full test-suite (57 tests, including the end-to-end graph and API flows)
   runs in CI with **no API key and no network.**
 - Reviewers can clone, `make install && make test && make run` and see real
   output in seconds.
