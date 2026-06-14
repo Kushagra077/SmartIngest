@@ -22,7 +22,7 @@ $200–500/month of SaaS for — but wired to *your* rules and workflow.
 
 ```mermaid
 flowchart TD
-    Client["Client<br/>Streamlit / React UI"] --> API["FastAPI backend<br/>/upload · /status · /results"]
+    Client["Client<br/>Streamlit UI <i>(React planned)</i>"] --> API["FastAPI backend<br/>/upload · /status · /results"]
     API --> Store["Job state store<br/>SQLite (Redis-ready)"]
     Store --> Graph
 
@@ -242,7 +242,7 @@ SmartIngest/
 │   │   └── eval/           ← dataset · metrics · runner · LangSmith experiment
 │   └── frontend/streamlit_app.py
 ├── data/eval/             ← golden dataset + labeled documents
-├── tests/                 ← pytest suite (57 tests)
+├── tests/                 ← pytest suite (72 tests)
 └── requirements.txt
 ```
 
@@ -253,7 +253,7 @@ LangGraph · Gemini API (multimodal) · FastAPI · Pydantic v2 · LangSmith · S
 ## Testing
 
 ```bash
-make test        # 57 tests: agents, rules, store, guardrails, eval, graph, API
+make test        # 72 tests: agents, rules, store, guardrails, eval, graph, API
 ```
 
 The suite runs entirely in mock-LLM mode, so it needs no API key or network.
