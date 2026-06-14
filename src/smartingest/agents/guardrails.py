@@ -11,22 +11,12 @@ Validator (it needs the extracted fields).
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from smartingest.config import Settings, get_settings
-from smartingest.guardrails import detect_pii, scan_for_injection
+from smartingest.guardrails import detect_pii, read_text_source, scan_for_injection
 from smartingest.logging_config import get_logger
 from smartingest.state import AgentState
 
 logger = get_logger(__name__)
-
-
-def _read_text(file_path: str) -> str:
-    """Best-effort text read; binary documents degrade to empty string."""
-    try:
-        return Path(file_path).read_text(encoding="utf-8", errors="ignore")
-    except OSError:  # pragma: no cover - defensive
-        return ""
 
 
 def guardrail_node(state: AgentState, settings: Settings | None = None) -> AgentState:
@@ -41,7 +31,7 @@ def guardrail_node(state: AgentState, settings: Settings | None = None) -> Agent
     if not settings.smartingest_enable_guardrails:
         return {"security_findings": []}
 
-    text = _read_text(state["file_path"])
+    text = read_text_source(state["file_path"])
     findings = scan_for_injection(text) + detect_pii(text)
 
     if findings:

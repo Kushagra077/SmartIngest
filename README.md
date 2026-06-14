@@ -1,5 +1,9 @@
 # 📄 SmartIngest — Agentic Document Intelligence Pipeline
 
+[![CI](https://github.com/Kushagra077/SmartIgnest/actions/workflows/ci.yml/badge.svg)](https://github.com/Kushagra077/SmartIgnest/actions/workflows/ci.yml)
+&nbsp;![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
+&nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 > Upload an invoice, contract, resume or ID. SmartIngest **classifies** it,
 > **extracts** structured fields, **validates** them against your business
 > rules, and **routes** it — auto-approve, flag for review, or reject with a
@@ -173,6 +177,19 @@ a **CI regression gate**. With LangSmith configured, `smartingest.eval.langsmith
 uploads the dataset and runs the same evaluators as a tracked **experiment**
 (the "eval sets" in the architecture diagram), so eval runs sit next to
 production traces with per-node spans.
+
+### Multimodal eval (real Gemini)
+
+The golden set above is text so it runs offline in CI. A separate set exercises
+genuine **vision** extraction over rendered invoice **PNG + PDF** documents
+(`data/samples/invoice_scan.{png,pdf}`, reproducible via `make samples`):
+
+```bash
+make eval-multimodal   # needs a real GEMINI_API_KEY; PDF/image → structured fields
+```
+
+This proves the headline capability end-to-end: an image/PDF in, classified,
+extracted (vendor, line items, totals, tax id), validated and routed.
 
 > _Note:_ RAGAS was deliberately **not** added — it measures *retrieval*
 > quality, and this pipeline has no retrieval step. Extraction-accuracy metrics

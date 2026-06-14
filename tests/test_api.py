@@ -91,6 +91,21 @@ def test_rate_limit_returns_429(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
+def test_oversized_upload_rejected_early(tmp_path, monkeypatch):
+    monkeypatch.setenv("SMARTINGEST_MOCK_LLM", "true")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("SMARTINGEST_DB_PATH", str(tmp_path / "jobs.db"))
+    monkeypatch.setenv("SMARTINGEST_UPLOAD_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("SMARTINGEST_MAX_FILE_SIZE_MB", "0.00001")  # ~10 bytes
+    from smartingest.config import get_settings
+
+    get_settings.cache_clear()
+    files = {"file": ("big.txt", b"x" * 5000, "text/plain")}
+    with TestClient(app) as c:
+        assert c.post("/upload", files=files).status_code == 413
+    get_settings.cache_clear()
+
+
 def test_status_unknown_job(client):
     assert client.get("/status/does-not-exist").status_code == 404
 

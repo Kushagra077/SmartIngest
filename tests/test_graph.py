@@ -32,3 +32,19 @@ def test_pipeline_flags_unknown_vendor(tmp_path, monkeypatch):
     )
     result = run_pipeline("job-2", str(doc), "text/plain")
     assert result.route == RouteDecision.FLAG_FOR_REVIEW
+
+
+def test_pipeline_handles_binary_document_without_crashing(tmp_path, monkeypatch):
+    # A binary (image/PDF) upload must flow through the graph cleanly in mock
+    # mode — the text-based guardrails skip it instead of choking on the bytes.
+    monkeypatch.setenv("SMARTINGEST_MOCK_LLM", "true")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    doc = tmp_path / "scan.png"
+    doc.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00binary image bytes\x00")
+    result = run_pipeline("job-3", str(doc), "image/png")
+
+    assert result.status == JobStatus.COMPLETED  # no crash
+    assert result.route is not None  # a routing decision was reached
+    # Mock can't read images, so no grounding findings are raised on the noise.
+    assert not any(f.category.value == "grounding" for f in result.security_findings)

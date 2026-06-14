@@ -23,6 +23,7 @@ from smartingest.guardrails.pii import (
     mask_value,
     redact_pii,
 )
+from smartingest.guardrails.source import read_text_source
 
 __all__ = [
     "scan_for_injection",
@@ -33,4 +34,5 @@ __all__ = [
     "validate_upload",
     "FileValidationError",
     "check_grounding",
+    "read_text_source",
 ]

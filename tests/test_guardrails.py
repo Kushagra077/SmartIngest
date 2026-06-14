@@ -8,12 +8,34 @@ from smartingest.guardrails import (
     FileValidationError,
     check_grounding,
     detect_pii,
+    read_text_source,
     redact_pii,
     scan_for_injection,
     validate_upload,
 )
 from smartingest.guardrails.injection import scan_for_injection as scan
 from smartingest.models import ExtractedFields, RouteDecision, SecurityCategory
+
+
+# --- Source reader (text vs binary) ----------------------------------------
+
+
+def test_read_text_source_decodes_text(tmp_path):
+    p = tmp_path / "doc.txt"
+    p.write_text("Vendor: Acme Corp\nTotal: 100", encoding="utf-8")
+    assert "Acme Corp" in read_text_source(str(p))
+
+
+def test_read_text_source_skips_binary(tmp_path):
+    # A PNG-like file with NUL bytes must read as "" so grounding is skipped
+    # (otherwise binary noise false-flags every extracted value).
+    p = tmp_path / "doc.png"
+    p.write_bytes(b"\x89PNG\r\n\x00\x00ACME\x00binary\x00noise")
+    assert read_text_source(str(p)) == ""
+
+
+def test_read_text_source_missing_file():
+    assert read_text_source("/no/such/file") == ""
 
 
 # --- Injection -------------------------------------------------------------

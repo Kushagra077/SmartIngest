@@ -1,4 +1,4 @@
-.PHONY: install test api ui run eval lock export clean up down
+.PHONY: install test api ui run eval eval-multimodal samples lock export clean up down
 
 install:  ## Create the uv-managed venv and install all dependencies (incl. dev)
 	uv sync
@@ -21,8 +21,14 @@ ui:  ## Start the Streamlit frontend (http://localhost:8501)
 run:  ## Run one sample document through the pipeline (CLI)
 	uv run python -m smartingest.cli data/samples/invoice_acme.txt
 
-eval:  ## Run the evaluation harness over the golden dataset
+eval:  ## Run the evaluation harness over the golden dataset (offline-safe)
 	uv run python -m smartingest.eval.runner
+
+eval-multimodal:  ## Run the PDF/image eval set (requires a real GEMINI_API_KEY)
+	uv run python -m smartingest.eval.runner --dataset data/eval/multimodal.jsonl
+
+samples:  ## Regenerate the rendered invoice PNG + PDF samples
+	uv run python scripts/make_sample_docs.py
 
 up:  ## Build and run both services (API + UI) via Docker Compose
 	docker compose up --build
