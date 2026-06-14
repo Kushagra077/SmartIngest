@@ -102,7 +102,8 @@ uv run python -m smartingest.eval.runner --mock
 
 ### Resilience: model fallback + rate limiting
 
-Two safeguards make a public, real-Gemini demo survivable on a free tier:
+Two safeguards make the pipeline safe to expose as a public, real-Gemini demo
+on a free tier — should you choose to host one:
 
 - **Automatic model fallback** — `GEMINI_MODEL_FALLBACKS` lists ordered backup
   models. When the primary is rate-limited or overloaded (HTTP 429 / 503), the
@@ -111,7 +112,7 @@ Two safeguards make a public, real-Gemini demo survivable on a free tier:
 - **Rate limiting** — `/upload` enforces a per-client per-minute cap *and* a
   **global daily cap** (`SMARTINGEST_RATE_LIMIT_PER_DAY`). The global cap is the
   quota ceiling: it bounds total LLM calls per day across all visitors so a
-  shared demo link can't drain your key.
+  shared demo link couldn't drain your key.
 
 ### Deployment
 
