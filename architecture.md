@@ -32,8 +32,8 @@ guardrails → classifier → extractor → validator ─┬─(low confidence)�
 The `validator → {extractor | router}` edge is a **conditional edge**
 (`needs_retry` in `agents/validator.py`). This is the single most important
 structural decision in the graph and is covered in §3. The `guardrails` entry
-node and the grounding check inside the Validator are covered in §10; the
-evaluation harness in §11.
+node and the grounding check inside the Validator are covered in §9; the
+evaluation harness in §10.
 
 ---
 
@@ -122,7 +122,7 @@ keyword/regex heuristics.
 Why this matters:
 
 - The pipeline **never hard-fails for lack of credentials.**
-- The full test-suite (57 tests, including the end-to-end graph and API flows)
+- The full test-suite (72 tests, including the end-to-end graph and API flows)
   runs in CI with **no API key and no network.**
 - Reviewers can clone, `make install && make test && make run` and see real
   output in seconds.
@@ -158,7 +158,7 @@ Every boundary is a Pydantic model (`models.py`):
 
 ---
 
-## 10. Security guardrails
+## 9. Security guardrails
 
 Documents are **untrusted input fed to an LLM**, which makes them an attack
 surface. Guardrails (`src/smartingest/guardrails/`) wrap the pipeline at three
@@ -197,7 +197,7 @@ These are intentionally **dependency-free heuristics** — a strong, transparent
 first line of defence. The production upgrade path is a model-based injection
 classifier and Presidio for PII, both swappable behind the existing interfaces.
 
-## 11. Evaluation
+## 10. Evaluation
 
 The architecture diagram calls for LangSmith "eval sets". The harness
 (`src/smartingest/eval/`) implements this with metrics tuned to the use case:
@@ -221,7 +221,7 @@ nothing to measure. Adding RAGAS would be cargo-culting; extraction-accuracy
 metrics are the correct analogue. RAGAS becomes relevant only if a retrieval
 component (e.g. a vendor/policy knowledge base) is later introduced.
 
-## 12. Trade-offs & next steps
+## 11. Trade-offs & next steps
 
 | Area            | Current                          | Production upgrade path                          |
 |-----------------|----------------------------------|--------------------------------------------------|
