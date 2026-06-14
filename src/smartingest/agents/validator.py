@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from pathlib import Path
 
 from smartingest.config import Settings, get_settings
-from smartingest.guardrails import check_grounding, detect_sensitive_fields
+from smartingest.guardrails import (
+    check_grounding,
+    detect_sensitive_fields,
+    read_text_source,
+)
 from smartingest.logging_config import get_logger
 from smartingest.models import DocumentType, ExtractedFields, ValidationIssue
 from smartingest.rules import Rules, get_rules
@@ -30,16 +33,6 @@ def _parse_iso(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except (ValueError, TypeError):
         return None
-
-
-def _read_source_text(file_path: str) -> str:
-    """Best-effort text read of the source document for grounding."""
-    if not file_path:
-        return ""
-    try:
-        return Path(file_path).read_text(encoding="utf-8", errors="ignore")
-    except OSError:  # pragma: no cover - defensive
-        return ""
 
 
 def _is_empty(value: object) -> bool:
@@ -275,7 +268,7 @@ def validator_node(
     # source. Appended to the existing security findings from the entry scan.
     updates: AgentState = {"validation_issues": issues}
     if settings.smartingest_enable_guardrails:
-        source_text = _read_source_text(state.get("file_path", ""))
+        source_text = read_text_source(state.get("file_path", ""))
         extra_findings = check_grounding(fields, source_text)
         extra_findings += detect_sensitive_fields(fields)
         if extra_findings:
