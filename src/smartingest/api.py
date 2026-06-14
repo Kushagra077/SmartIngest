@@ -96,10 +96,21 @@ async def upload(request: Request, file: UploadFile = File(...)) -> UploadRespon
     if not file.filename:
         raise HTTPException(status_code=400, detail="A filename is required.")
 
+    settings = app.state.settings
+    max_bytes = int(settings.smartingest_max_file_size_mb * 1024 * 1024)
+
+    # Reject oversized uploads up front (via the declared size) so we never read
+    # an enormous body into memory just to fail the size check afterwards.
+    if file.size is not None and file.size > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds the {settings.smartingest_max_file_size_mb} MB limit.",
+        )
+
     contents = await file.read()
 
-    # Input guardrail: validate size/type before persisting or processing.
-    settings = app.state.settings
+    # Input guardrail: re-validate size/type on the actual bytes before
+    # persisting or processing (defends against an understated size header).
     try:
         validate_upload(
             file.filename,

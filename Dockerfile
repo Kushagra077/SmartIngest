@@ -25,6 +25,13 @@ RUN uv sync --frozen --no-dev
 # Put the venv on PATH so `uvicorn` / `streamlit` resolve directly.
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Run as a non-root user. The data dir is pre-created and owned by that user so
+# a fresh named volume mounted there inherits writable ownership.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/data \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000 8501
 
 # Default to the API; docker-compose / the platform overrides for the UI.

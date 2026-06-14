@@ -181,6 +181,14 @@ points:
    must appear in the source text. Ungrounded values are `warning`-severity and
    route the document to **flag-for-review**.
 
+> **Scope note (text vs. vision):** the injection/PII/grounding scanners operate
+> on *text* documents. Images and PDFs are read by the vision model directly, so
+> their byte content is deliberately skipped (`guardrails/source.py` returns
+> empty for binary, preventing false findings). The consequence is that
+> injection text *rendered inside an image/scan* is not caught by the regex
+> scanner — closing that gap is exactly what the model-based / vision-aware
+> guard in the upgrade path below is for.
+
 All findings are typed `SecurityFinding` objects carried in `AgentState` and
 surfaced in `PipelineResult.security_findings`, so the Router can fold security
 signals into the same deterministic decision as the business rules.

@@ -10,8 +10,9 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    # Named volume (not a host bind) so the non-root container user can write it.
     volumes:
-      - ./data:/app/data
+      - smartingest-data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)"]
       interval: 10s
@@ -31,3 +32,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+volumes:
+  smartingest-data:
