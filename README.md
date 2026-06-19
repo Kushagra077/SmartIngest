@@ -135,6 +135,12 @@ Every node run (Classifier, Extractor, Validator, Router) then appears as a
 traced step in your LangSmith project — the production-monitoring signal that
 matters for real deployments.
 
+![LangSmith per-node trace](demo/04-langsmith-trace.png)
+
+> More traces (project overview, injection caught by guardrails) in
+> [`demo/`](demo/README.md#langsmith-tracing). Tracing initialises on the **API**
+> path (`make api`), not the CLI.
+
 ---
 
 ## API

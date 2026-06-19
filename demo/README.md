@@ -9,6 +9,27 @@ real app (FastAPI backend + Streamlit UI) over the bundled sample documents.
 
 ![landing](00-landing.png)
 
+## LangSmith tracing
+
+Every graph node (Guardrails → Classifier → Extractor → Validator → Router) is
+traced as a step in LangSmith when `LANGSMITH_TRACING=true`. These were captured
+over real **Gemini** runs (text, PDF and image documents) via the API/UI path.
+
+**Per-node trace of a single document** — the full LangGraph waterfall plus the
+typed `Output` fields (`document_type`, `route`, confidences, `security_findings`):
+
+![LangSmith trace](04-langsmith-trace.png)
+
+**Project overview** — multiple documents, their routes, and per-run latency
+(LangSmith flags slow runs in red; the heavier vision/PDF runs are the slow ones):
+
+![LangSmith overview](05-langsmith-overview.png)
+
+**Guardrails in action** — an injection payload surfaces as typed
+`security_findings` on the `guardrails` node, which the Router turns into a reject:
+
+![LangSmith injection trace](06-langsmith-injection.png)
+
 ## One-click samples
 
 The UI ships with **"try a bundled sample"** buttons — no upload needed. Each
@@ -43,7 +64,8 @@ uv run python scripts/capture_demo.py
 ```
 
 > 📹 Loom walkthrough (60–90s): _add link here_
-> 🔍 LangSmith trace: add `04-langsmith-trace.png` with `LANGSMITH_TRACING=true`.
+> 🔍 LangSmith traces (above) were captured with `LANGSMITH_TRACING=true` over real
+> Gemini runs. Note: tracing initialises on the **API** path (`make api`), not the CLI.
 
 ## Reproduce headless (no UI)
 
