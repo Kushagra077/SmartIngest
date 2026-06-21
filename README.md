@@ -1,6 +1,6 @@
 # 📄 SmartIngest — Agentic Document Intelligence Pipeline
 
-[![CI](https://github.com/Kushagra077/SmartIgnest/actions/workflows/ci.yml/badge.svg)](https://github.com/Kushagra077/SmartIgnest/actions/workflows/ci.yml)
+[![CI](https://github.com/Kushagra077/SmartIngest/actions/workflows/ci.yml/badge.svg)](https://github.com/Kushagra077/SmartIngest/actions/workflows/ci.yml)
 &nbsp;![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 &nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
