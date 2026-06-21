@@ -63,7 +63,8 @@ uv run python -m playwright install chromium
 uv run python scripts/capture_demo.py
 ```
 
-> 📹 Loom walkthrough (60–90s): _add link here_
+> 📹 **[Video walkthrough (90s) on YouTube](https://youtu.be/DgXVG6Zd9wA)** — the full
+> pipeline driven live through the Streamlit UI (auto-approve · reject · flag).
 > 🔍 LangSmith traces (above) were captured with `LANGSMITH_TRACING=true` over real
 > Gemini runs. Note: tracing initialises on the **API** path (`make api`), not the CLI.
 

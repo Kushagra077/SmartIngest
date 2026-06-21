@@ -3,6 +3,7 @@
 [![CI](https://github.com/Kushagra077/SmartIngest/actions/workflows/ci.yml/badge.svg)](https://github.com/Kushagra077/SmartIngest/actions/workflows/ci.yml)
 &nbsp;![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 &nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-green)
+&nbsp;[![Watch the demo](https://img.shields.io/badge/▶_watch-demo_video-red)](https://youtu.be/DgXVG6Zd9wA)
 
 > Upload an invoice, contract, resume or ID. SmartIngest **classifies** it,
 > **extracts** structured fields, **validates** them against your business
@@ -12,9 +13,11 @@
 Built for the kind of bespoke invoice/document automation that companies pay
 $200–500/month of SaaS for — but wired to *your* rules and workflow.
 
-![SmartIngest auto-approving an invoice](demo/01-auto-approve.png)
+[![SmartIngest auto-approving an invoice](demo/01-auto-approve.png)](https://youtu.be/DgXVG6Zd9wA)
 
-> More screenshots (flag-for-review, reject) in [`demo/`](demo/README.md).
+> ▶️ **[Watch the 90-second demo](https://youtu.be/DgXVG6Zd9wA)** (click the image above) —
+> auto-approve, injection-reject, and flag-for-review over real Gemini vision.
+> More screenshots in [`demo/`](demo/README.md).
 
 ---
 
